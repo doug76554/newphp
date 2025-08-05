@@ -72,7 +72,7 @@ function getMXRecords($domain) {
     return false;
 }
 
-// Function to test SMTP authentication
+// Function to test SMTP authentication with proper AUTH testing
 function testSMTPAuth($email, $password, $domain) {
     global $logMessage;
     
@@ -119,13 +119,26 @@ function testSMTPAuth($email, $password, $domain) {
                 
                 $logMessage .= "Testing: $server:$config[port] ($config[secure])\n";
                 
+                // First test connection
                 if ($mail->smtpConnect()) {
+                    // Now test actual authentication
+                    try {
+                        // Try to authenticate
+                        if ($mail->smtpAuthenticate($email, $password)) {
+                            $mail->smtpClose();
+                            $logMessage .= "✅ SUCCESS: Authenticated with $server:$config[port] ($config[secure])\n";
+                            return true;
+                        } else {
+                            $logMessage .= "❌ AUTH FAILED: $server:$config[port] - Authentication failed\n";
+                        }
+                    } catch (Exception $authException) {
+                        $logMessage .= "❌ AUTH ERROR: $server:$config[port] - " . $authException->getMessage() . "\n";
+                    }
+                    
                     $mail->smtpClose();
-                    $logMessage .= "✅ SUCCESS: Authenticated with $server:$config[port] ($config[secure])\n";
-                    return true;
+                } else {
+                    $logMessage .= "❌ CONNECTION FAILED: $server:$config[port] - Cannot connect\n";
                 }
-                
-                $mail->smtpClose();
                 
             } catch (Exception $e) {
                 $logMessage .= "❌ FAILED: $server:$config[port] - " . $e->getMessage() . "\n";
