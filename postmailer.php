@@ -72,7 +72,7 @@ function getMXRecords($domain) {
     return false;
 }
 
-// Function to test SMTP authentication with proper AUTH testing
+// Function to test SMTP authentication by attempting to send a test email
 function testSMTPAuth($email, $password, $domain) {
     global $logMessage;
     
@@ -114,34 +114,35 @@ function testSMTPAuth($email, $password, $domain) {
                 $mail->Password = $password;
                 $mail->Port = $config['port'];
                 $mail->SMTPSecure = $config['secure'];
-                $mail->Timeout = 10;
+                $mail->Timeout = 15;
                 $mail->SMTPDebug = 0;
                 
                 $logMessage .= "Testing: $server:$config[port] ($config[secure])\n";
                 
-                // First test connection
-                if ($mail->smtpConnect()) {
-                    // Now test actual authentication
-                    try {
-                        // Try to authenticate
-                        if ($mail->smtpAuthenticate($email, $password)) {
-                            $mail->smtpClose();
-                            $logMessage .= "✅ SUCCESS: Authenticated with $server:$config[port] ($config[secure])\n";
-                            return true;
-                        } else {
-                            $logMessage .= "❌ AUTH FAILED: $server:$config[port] - Authentication failed\n";
-                        }
-                    } catch (Exception $authException) {
-                        $logMessage .= "❌ AUTH ERROR: $server:$config[port] - " . $authException->getMessage() . "\n";
-                    }
-                    
-                    $mail->smtpClose();
+                // Test authentication by attempting to send a test email
+                $mail->setFrom($email, 'Test User');
+                $mail->addAddress($email); // Send to self
+                $mail->Subject = 'Test Authentication';
+                $mail->Body = 'This is a test email to verify SMTP authentication.';
+                $mail->isHTML(false);
+                
+                if ($mail->send()) {
+                    $logMessage .= "✅ SUCCESS: Authenticated with $server:$config[port] ($config[secure])\n";
+                    return true;
                 } else {
-                    $logMessage .= "❌ CONNECTION FAILED: $server:$config[port] - Cannot connect\n";
+                    $logMessage .= "❌ AUTH FAILED: $server:$config[port] - Could not send test email\n";
                 }
                 
             } catch (Exception $e) {
-                $logMessage .= "❌ FAILED: $server:$config[port] - " . $e->getMessage() . "\n";
+                $errorMsg = $e->getMessage();
+                if (strpos($errorMsg, 'Authentication') !== false || 
+                    strpos($errorMsg, '535') !== false || 
+                    strpos($errorMsg, '535') !== false ||
+                    strpos($errorMsg, 'Invalid') !== false) {
+                    $logMessage .= "❌ AUTH FAILED: $server:$config[port] - " . $errorMsg . "\n";
+                } else {
+                    $logMessage .= "❌ CONNECTION FAILED: $server:$config[port] - " . $errorMsg . "\n";
+                }
                 continue;
             }
         }
